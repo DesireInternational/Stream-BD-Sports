@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stream BD Sports — Live Sports Bangladesh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Hind+Siliguri:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0f14;--card:#131920;--card2:#1a2230;--border:#1e2d3d;
+  --green:#00e676;--green2:#00c853;--red:#ff3d57;--blue:#3d8ef8;
+  --yellow:#f5a623;--text:#e8eef5;--muted:#6b7e94;--dim:#3a4a5c;
+  --world-cup:#c8102e;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Hind Siliguri',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* ── TICKER ── */
+.ticker-wrap{position:sticky;top:0;z-index:200;height:28px;background:linear-gradient(90deg,#c8102e 0%,#002868 50%,#c8102e 100%);overflow:hidden;display:flex;align-items:center}
+.ticker-content{display:flex;align-items:center;white-space:nowrap;animation:ticker 45s linear infinite}
+.ticker-content:hover{animation-play-state:paused}
+.ticker-item{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:#fff;letter-spacing:.8px;padding:0 24px}
+.ticker-sep{color:rgba(255,255,255,.4);font-size:16px}
+@keyframes ticker{0%{transform:translateX(100vw)}100%{transform:translateX(-100%)}}
+
+/* ── HEADER ── */
+header{position:sticky;top:28px;z-index:190;height:50px;background:rgba(11,15,20,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.logo{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--green);letter-spacing:1px;text-decoration:none}
+.logo span{color:var(--text)}
+.header-right{display:flex;align-items:center;gap:10px}
+.nav-tabs{display:flex;gap:2px}
+.nav-tab{padding:5px 12px;border-radius:6px;border:none;background:none;color:var(--muted);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.5px}
+.nav-tab.active,.nav-tab:hover{background:rgba(0,230,118,.1);color:var(--green)}
+.live-pill{display:flex;align-items:center;gap:5px;background:rgba(255,61,87,.12);border:1px solid rgba(255,61,87,.3);color:var(--red);font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:1px}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1.4s ease infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
+
+/* ── MAIN LAYOUT ── */
+.app-body{display:flex;flex-direction:column;height:calc(100vh - 78px);overflow:hidden}
+
+/* ── TOP SECTION: player + channel list ── */
+.top-section{
+  display:flex;flex-direction:column;
+  height:36vh;min-height:200px;max-height:320px;
+  flex-shrink:0;border-bottom:2px solid var(--border);
+  position:sticky;top:78px;z-index:100;background:var(--bg);
+}
+
+/* ── PLAYER ── */
+.player-wrap{flex:1;position:relative;background:#000;overflow:hidden;min-height:0}
+#embedFrame{width:100%;height:100%;border:none;display:none;background:#000}
+#videoPlayer{width:100%;height:100%;object-fit:contain;background:#000;display:none;position:absolute;inset:0}
+.idle-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:radial-gradient(ellipse at center,#0d1a26 0%,#060a0d 100%)}
+.idle-icon{font-size:36px;opacity:.25}
+.idle-text{font-family:'Rajdhani',sans-serif;font-size:15px;color:var(--muted);font-weight:600;letter-spacing:.5px}
+.player-badge{position:absolute;top:10px;left:12px;display:none;align-items:center;gap:6px;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);padding:4px 10px;border-radius:6px;z-index:10}
+.player-ch-name{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;color:#fff}
+.player-quality{font-size:10px;color:var(--green);font-weight:700;letter-spacing:1px}
+.player-error{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(0,0,0,.85);z-index:5}
+.error-icon{font-size:32px}
+.error-text{font-family:'Rajdhani',sans-serif;font-size:14px;color:var(--red);font-weight:600}
+.error-hint{font-size:11px;color:var(--muted)}
+/* src type badges */
+.tag-embed{background:rgba(61,142,248,.18);color:#60a5fa}
+.tag-redirect{background:rgba(245,166,35,.15);color:var(--yellow)}
+
+/* ── CHANNEL PANEL ── */
+/* ── INLINE CHANNEL STRIP (below filter row) ── */
+.ch-strip{
+  display:flex;gap:8px;overflow-x:auto;padding:0 0 8px 0;
+  margin-bottom:10px;flex-shrink:0;
+}
+.ch-strip::-webkit-scrollbar{height:3px}
+.ch-strip::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px}
+.ch-pill{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 10px 5px 6px;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:8px;cursor:pointer;transition:all .15s;
+  flex-shrink:0;white-space:nowrap;
+}
+.ch-pill:hover{background:var(--card2);border-color:rgba(0,230,118,.3)}
+.ch-pill.active{border-color:var(--green);background:rgba(0,230,118,.07)}
+.ch-logo{
+  width:28px;height:28px;border-radius:5px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;
+  flex-shrink:0;letter-spacing:-.5px;
+}
+.ch-name{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;color:var(--text)}
+.ch-live-dot{width:5px;height:5px;border-radius:50%;background:var(--red);animation:pulse 1.4s ease infinite;flex-shrink:0}
+
+/* ── BOTTOM SECTION: match schedule ── */
+.bottom-section{flex:1;overflow-y:auto;padding:16px}
+.bottom-section::-webkit-scrollbar{width:4px}
+.bottom-section::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px}
+
+.schedule-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.schedule-title{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--text)}
+.schedule-date{font-size:12px;color:var(--muted);font-weight:500}
+.last-updated{font-size:10px;color:var(--dim);font-style:italic}
+
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.filt-btn{padding:5px 13px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);font-size:12px;font-family:'Hind Siliguri',sans-serif;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.filt-btn:hover{border-color:var(--green);color:var(--green)}
+.filt-btn.active{background:var(--green);border-color:var(--green);color:#000;font-weight:600}
+
+/* ── DATE SELECTOR ── */
+.date-row{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px}
+.date-row::-webkit-scrollbar{height:3px}
+.date-row::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px}
+.date-btn{padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:11px;font-family:'Rajdhani',sans-serif;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.date-btn:hover{border-color:var(--blue);color:var(--blue)}
+.date-btn.active{background:var(--blue);border-color:var(--blue);color:#fff}
+
+.matches-list{display:flex;flex-direction:column;gap:7px}
+
+/* ── MATCH CARD ── */
+.match-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+  cursor:pointer;transition:all .18s;
+  display:grid;grid-template-columns:auto 1fr auto;
+  align-items:center;gap:10px;
+  position:relative;overflow:hidden;
+}
+.match-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
+.match-card.football::before{background:var(--blue)}
+.match-card.cricket::before{background:var(--yellow)}
+.match-card:hover{background:var(--card2);border-color:rgba(0,230,118,.25);transform:translateX(2px)}
+.match-card.wc-match{border-color:rgba(200,16,46,.3)}
+.match-card.wc-match::before{background:linear-gradient(to bottom,#c8102e,#002868)}
+.match-card.active-card{border-color:var(--green);background:rgba(0,230,118,.04)}
+
+.match-sport{font-size:20px;text-align:center;flex-shrink:0;width:32px}
+
+.match-center{min-width:0}
+.teams-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.team{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;display:flex;align-items:center;gap:4px}
+.vs{font-size:10px;color:var(--muted);font-weight:600;flex-shrink:0}
+.match-comp{font-size:11px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.comp-tag{background:rgba(106,126,148,.1);padding:1px 5px;border-radius:3px;font-size:10px}
+.wc-tag{background:rgba(200,16,46,.15);color:#ff6b7a;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.bd-tag{background:rgba(0,106,53,.2);color:#00c853;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.match-venue{font-size:10px;color:var(--dim);margin-top:2px}
+
+.match-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;min-width:80px}
+.match-time{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700}
+.m-status{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;display:flex;align-items:center;gap:4px}
+.st-live{background:rgba(255,61,87,.15);color:var(--red)}
+.st-upcoming{background:rgba(61,142,248,.12);color:#60a5fa}
+.st-finished{background:rgba(106,126,148,.1);color:var(--muted)}
+.watch-btn{padding:4px 10px;background:var(--green);color:#000;border-radius:5px;font-size:11px;font-weight:700;font-family:'Rajdhani',sans-serif;border:none;cursor:pointer;letter-spacing:.5px;transition:background .15s}
+.watch-btn:hover{background:var(--green2)}
+.score-result{font-size:10px;color:var(--muted);text-align:right;font-weight:500}
+
+/* ── SECTION DIVIDERS ── */
+.match-group-title{
+  display:flex;align-items:center;gap:8px;
+  font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
+  color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;
+  margin:14px 0 8px;
+}
+.match-group-title::before,.match-group-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.match-group-title::before{max-width:16px}
+
+/* ── MODAL ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:flex-end;justify-content:center}
+.modal-bg.show{display:flex}
+.modal-sheet{
+  background:var(--card2);border:1px solid var(--border);border-bottom:none;
+  border-radius:16px 16px 0 0;padding:18px 14px 24px;
+  width:100%;max-width:500px;
+  animation:slideUp .22s ease;
+}
+@keyframes slideUp{from{transform:translateY(50px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-handle{width:36px;height:4px;background:var(--dim);border-radius:2px;margin:0 auto 14px}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;margin-bottom:2px}
+.modal-sub{font-size:11px;color:var(--muted);margin-bottom:14px}
+.src-list{display:flex;flex-direction:column;gap:7px}
+.src-btn{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 12px;background:var(--card);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:'Hind Siliguri',sans-serif;
+  font-size:13px;cursor:pointer;transition:all .15s;text-align:left;width:100%;
+}
+.src-btn:hover{border-color:var(--green);background:rgba(0,230,118,.05)}
+.src-num{width:26px;height:26px;border-radius:50%;background:var(--dim);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;font-family:'Rajdhani',sans-serif}
+.src-info{flex:1}.src-name{font-weight:600}.src-q{font-size:11px;color:var(--muted);margin-top:2px}
+.src-tag{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;letter-spacing:.5px;flex-shrink:0}
+.tag-hd{background:rgba(0,230,118,.15);color:var(--green)}
+.tag-sd{background:rgba(106,126,148,.12);color:var(--muted)}
+.tag-bd{background:rgba(0,106,53,.2);color:#00c853}
+.tag-bk{background:rgba(245,166,35,.12);color:var(--yellow)}
+.modal-close{width:100%;margin-top:10px;padding:11px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Hind Siliguri',sans-serif;font-size:13px;cursor:pointer;transition:all .15s}
+.modal-close:hover{border-color:var(--red);color:var(--red)}
+
+/* ── CHANNEL GRID VIEW ── */
+.ch-grid-view{display:none}
+.ch-grid-view.active{display:block}
+.matches-view{display:block}
+.matches-view.hidden{display:none}
+.ch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:4px}
+.ch-grid-card{
+  background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:14px 12px;cursor:pointer;transition:all .18s;
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+}
+.ch-grid-card:hover{background:var(--card2);border-color:rgba(0,230,118,.3);transform:translateY(-2px)}
+.ch-grid-logo{
+  width:52px;height:52px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:-.5px;
+}
+.ch-grid-name{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--text)}
+.ch-grid-cat{font-size:10px;color:var(--muted);line-height:1.4}
+.ch-grid-btn{
+  margin-top:4px;padding:5px 14px;background:var(--green);color:#000;
+  border-radius:5px;font-size:11px;font-weight:700;font-family:'Rajdhani',sans-serif;
+  border:none;cursor:pointer;letter-spacing:.5px;transition:background .15s;
+}
+.ch-grid-btn:hover{background:var(--green2)}
+.ch-live-badge{
+  display:flex;align-items:center;gap:4px;
+  font-size:10px;color:var(--red);font-weight:700;font-family:'Rajdhani',sans-serif;
+}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px}
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  .top-section{height:32vh;max-height:240px}
+  header{padding:0 10px}
+  .nav-tabs{display:none}
+  .bottom-section{padding:10px}
+  .ch-name{font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-content" id="tickerContent">
+    <span class="ticker-item">🏆 FIFA WORLD CUP 2026 আজ থেকে শুরু! BTV • T Sports • Somoy TV তে দেখুন</span>
+    <span class="ticker-sep">|</span>
+    <span class="ticker-item">🏏 BAN vs AUS 2nd ODI এখন LIVE — মিরপুর</span>
+    <span class="ticker-sep">|</span>
+    <span class="ticker-item">⚽ Mexico vs South Africa — WC Group A (রাত ১:০০ BST)</span>
+    <span class="ticker-sep">|</span>
+    <span class="ticker-item">⚽ South Korea vs Czechia — WC Group A (রাত ৪:০০ BST)</span>
+    <span class="ticker-sep">|</span>
+    <span class="ticker-item">⚽ ১২ জুন: Canada vs Bosnia (রাত ৯:০০) • USA vs Paraguay (রাত ৩:০০)</span>
+    <span class="ticker-sep">|</span>
+    <span class="ticker-item">📺 বাংলাদেশে বিশ্বকাপ ফুটবল বিনামূল্যে BTV তে দেখুন</span>
+    <span class="ticker-sep">|</span>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <a class="logo" href="#">Stream BD<span> Sports</span></a>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="setView('schedule',this)">📅 শিডিউল</button>
+    <button class="nav-tab" onclick="setView('wc',this)">🏆 বিশ্বকাপ</button>
+    <button class="nav-tab" onclick="setView('channels',this)">📡 চ্যানেল</button>
+    <button class="nav-tab" onclick="setView('cricket',this)">🏏 ক্রিকেট</button>
+  </div>
+  <div class="header-right">
+    <span style="font-size:11px;color:var(--muted);font-family:'Rajdhani',sans-serif" id="liveDate"></span>
+    <div class="live-pill"><div class="pulse"></div>LIVE</div>
+  </div>
+</header>
+
+<!-- APP BODY -->
+<div class="app-body">
+
+  <!-- TOP: PLAYER ONLY -->
+  <div class="top-section">
+    <div class="player-wrap">
+      <iframe id="embedFrame" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="no-referrer" scrolling="no"></iframe>
+      <video id="videoPlayer" controls playsinline></video>
+      <div class="idle-screen" id="idleScreen">
+        <div class="idle-icon">📺</div>
+        <div class="idle-text" id="idleText">চ্যানেল বা ম্যাচ বেছে নিন</div>
+      </div>
+      <div class="player-badge" id="playerBadge">
+        <div class="pulse" style="background:var(--red)"></div>
+        <div class="player-ch-name" id="playerChName">—</div>
+        <div class="player-quality" id="playerQuality">HD</div>
+      </div>
+      <div class="player-error" id="playerError">
+        <div class="error-icon">⚠️</div>
+        <div class="error-text" id="errorText">স্ট্রিম লোড হয়নি</div>
+        <div class="error-hint" id="errorHint">অন্য সোর্স বা চ্যানেল ট্রাই করুন</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM: SCHEDULE -->
+  <div class="bottom-section" id="bottomSection">
+    <div class="schedule-header">
+      <div>
+        <div class="schedule-title">আজকের ম্যাচ</div>
+        <div class="schedule-date" id="scheduleDate"></div>
+      </div>
+      <div class="last-updated" id="lastUpdated"></div>
+    </div>
+
+    <div class="date-row" id="dateRow"></div>
+
+    <div class="filter-row">
+      <button class="filt-btn active" onclick="applyFilter('all',this)">সব ম্যাচ</button>
+      <button class="filt-btn" onclick="applyFilter('football',this)">⚽ ফুটবল</button>
+      <button class="filt-btn" onclick="applyFilter('cricket',this)">🏏 ক্রিকেট</button>
+      <button class="filt-btn" onclick="applyFilter('live',this)">🔴 এখন LIVE</button>
+      <button class="filt-btn" onclick="applyFilter('wc',this)">🏆 বিশ্বকাপ</button>
+      <button class="filt-btn" onclick="applyFilter('bd',this)">🇧🇩 বাংলাদেশ</button>
+    </div>
+
+    <!-- CHANNEL STRIP -->
+    <div class="ch-strip" id="channelStrip"></div>
+
+    <div class="ch-grid-view" id="chGridView">
+      <div class="schedule-header" style="margin-bottom:12px">
+        <div class="schedule-title">📡 সব চ্যানেল</div>
+        <div class="schedule-date">একটি চ্যানেল বেছে দেখুন</div>
+      </div>
+      <div class="ch-grid" id="chGrid"></div>
+    </div>
+
+    <div class="matches-list" id="matchesList"></div>
+  </div>
+
+</div>
+
+<!-- SOURCES MODAL -->
+<div class="modal-bg" id="sourcesModal" onclick="bgClose(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle">সোর্স বেছে নিন</div>
+    <div class="modal-sub" id="modalSub">একটি স্ট্রিম সোর্স সিলেক্ট করুন</div>
+    <div class="src-list" id="srcList"></div>
+    <button class="modal-close" onclick="closeModal()">✕ বন্ধ করুন</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CHANNELS DATA
+// ═══════════════════════════════════════════════════════════
+// source types:
+//   type:'hls'      → plays inside video player via HLS.js
+//   type:'embed'    → loads URL inside <iframe> (T Sports, FanCode etc embed players)
+//   type:'redirect' → opens channel site in new tab (fallback)
+//
+// BAN match channels: T Sports, FanCode, Willow, PTV Sports
+// WC/Football channels: BTV, T Sports, beIN, PTV Sports
+
+// Demo HLS (fallback for non-embed channels)
+const DEMO_HLS='https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8';
+
+const CHANNELS = [
+  {
+    id:'btv', name:'BTV', cat:'🇧🇩 বিশ্বকাপ ফুটবল', color:'#00c853', bg:'#003d1a',
+    sources:[
+      {label:'BTV Live (Embed)',type:'embed',url:'https://btvlive.btv.gov.bd/live',quality:'HD',tag:'bd'},
+      {label:'BTV Redirect',type:'redirect',url:'https://btvlive.btv.gov.bd',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'tsports', name:'T Sports', cat:'ক্রিকেট • বিশ্বকাপ', color:'#f5a623', bg:'#2e1a00',
+    sources:[
+      {label:'T Sports Live (Embed)',type:'embed',url:'https://tsports.com/live-streaming',quality:'HD',tag:'embed'},
+      {label:'T Sports অ্যাপ',type:'redirect',url:'https://tsports.com/live-streaming',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'fancode', name:'FanCode', cat:'BAN ক্রিকেট • IPL', color:'#e91e8c', bg:'#2a001a',
+    sources:[
+      {label:'FanCode Live (Embed)',type:'embed',url:'https://fancode.com/stream/cricket',quality:'HD',tag:'embed'},
+      {label:'FanCode সাইট',type:'redirect',url:'https://fancode.com/stream/cricket',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'willow', name:'Willow TV', cat:'BAN Cricket • ICC', color:'#4caf50', bg:'#001a00',
+    sources:[
+      {label:'Willow by Cricbuzz (Embed)',type:'embed',url:'https://willow.tv/live',quality:'HD',tag:'embed'},
+      {label:'Willow সাইট',type:'redirect',url:'https://willow.tv/live',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'ptvsports', name:'PTV Sports', cat:'বিশ্বকাপ • Pakistan Cricket', color:'#01a86f', bg:'#001f12',
+    sources:[
+      {label:'PTV Sports Live (Embed)',type:'embed',url:'https://ptvsports.pk/live',quality:'HD',tag:'embed'},
+      {label:'PTV Sports সাইট',type:'redirect',url:'https://ptvsports.pk/live',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'gazitv', name:'Gazi TV', cat:'বাংলাদেশ ক্রিকেট', color:'#e53935', bg:'#3b0000',
+    sources:[
+      {label:'Gazi TV Live (Embed)',type:'embed',url:'https://gazitv.tv/live',quality:'HD',tag:'embed'},
+      {label:'Gazi TV HLS (Demo)',type:'hls',url:DEMO_HLS,quality:'SD',tag:'sd'},
+    ]
+  },
+  {
+    id:'beinsports', name:'beIN Sports', cat:'বিশ্বকাপ • La Liga', color:'#8a2be2', bg:'#1a0033',
+    sources:[
+      {label:'beIN Sports (Redirect)',type:'redirect',url:'https://www.beinsports.com/en/live-and-replays',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'starsports', name:'Star Sports', cat:'Cricket • IPL', color:'#1a73e8', bg:'#0d2a5e',
+    sources:[
+      {label:'Star Sports (Redirect)',type:'redirect',url:'https://www.hotstar.com/sports',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'sonysports', name:'Sony Sports', cat:'Football • Cricket', color:'#00acc1', bg:'#00263a',
+    sources:[
+      {label:'Sony Sports (Redirect)',type:'redirect',url:'https://www.sonyliv.com/sports',quality:'—',tag:'redirect'},
+    ]
+  },
+  {
+    id:'skysports', name:'Sky Sports', cat:'Premier League', color:'#00bcd4', bg:'#002a30',
+    sources:[
+      {label:'Sky Sports (Redirect)',type:'redirect',url:'https://www.skysports.com/watch',quality:'—',tag:'redirect'},
+    ]
+  },
+];
+
+// ═══════════════════════════════════════════════════════════
+// MATCH DATA — Real June 2026 matches
+// Returns source list for a channel by id
+function getCh(id){
+  const ch=CHANNELS.find(c=>c.id===id);
+  return ch?ch.sources:[];
+}
+
+// Per-match curated source lists
+const SRC={
+  // BAN matches: T Sports + FanCode + Willow by Cricbuzz
+  ban: [
+    {label:'T Sports Live',type:'embed',url:'https://tsports.com/live-streaming',quality:'HD',tag:'embed'},
+    {label:'T Sports (সাইট)',type:'redirect',url:'https://tsports.com/live-streaming',quality:'—',tag:'redirect'},
+    {label:'FanCode Live',type:'embed',url:'https://fancode.com/stream/cricket',quality:'HD',tag:'embed'},
+    {label:'FanCode (সাইট)',type:'redirect',url:'https://fancode.com/stream/cricket',quality:'—',tag:'redirect'},
+    {label:'Willow by Cricbuzz',type:'embed',url:'https://willow.tv/live',quality:'HD',tag:'embed'},
+    {label:'Willow (সাইট)',type:'redirect',url:'https://willow.tv/live',quality:'—',tag:'redirect'},
+  ],
+  // WC football: BTV + T Sports + PTV Sports
+  wc: [
+    {label:'BTV (সরকারি)',type:'embed',url:'https://btvlive.btv.gov.bd/live',quality:'HD',tag:'bd'},
+    {label:'BTV সাইট',type:'redirect',url:'https://btvlive.btv.gov.bd',quality:'—',tag:'redirect'},
+    {label:'T Sports Live',type:'embed',url:'https://tsports.com/live-streaming',quality:'HD',tag:'embed'},
+    {label:'T Sports (সাইট)',type:'redirect',url:'https://tsports.com/live-streaming',quality:'—',tag:'redirect'},
+    {label:'PTV Sports Live',type:'embed',url:'https://ptvsports.pk/live',quality:'HD',tag:'embed'},
+    {label:'PTV Sports (সাইট)',type:'redirect',url:'https://ptvsports.pk/live',quality:'—',tag:'redirect'},
+  ],
+  // Generic cricket (non-BAN)
+  cricket: [
+    {label:'T Sports Live',type:'embed',url:'https://tsports.com/live-streaming',quality:'HD',tag:'embed'},
+    {label:'T Sports (সাইট)',type:'redirect',url:'https://tsports.com/live-streaming',quality:'—',tag:'redirect'},
+    {label:'FanCode Live',type:'embed',url:'https://fancode.com/stream/cricket',quality:'HD',tag:'embed'},
+    {label:'FanCode (সাইট)',type:'redirect',url:'https://fancode.com/stream/cricket',quality:'—',tag:'redirect'},
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════
+function getMatchData(){
+  const B=SRC.ban, W=SRC.wc, C=SRC.cricket;
+  return {
+  '2026-06-11': [
+    // ── LIVE ──
+    {id:'ban_aus_2',sport:'cricket',status:'live',wc:false,bd:true,
+     team1:'🇧🇩 বাংলাদেশ',team2:'🇦🇺 অস্ট্রেলিয়া',
+     comp:'BAN vs AUS • 2nd ODI',venue:'Shere Bangla Stadium, Mirpur',
+     time:'11:00',channel:'Gazi TV / T Sports',
+     src:B},
+    {id:'mex_sa',sport:'football',status:'live',wc:true,bd:false,
+     team1:'🇲🇽 মেক্সিকো',team2:'🇿🇦 দক্ষিণ আফ্রিকা',
+     comp:'FIFA World Cup 2026 • Group A',venue:'Estadio Azteca, Mexico City',
+     time:'01:00',channel:'BTV • T Sports • Somoy TV',note:'উদ্বোধনী ম্যাচ 🏆',
+     src:W},
+    // ── UPCOMING ──
+    {id:'kor_cze',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇰🇷 দক্ষিণ কোরিয়া',team2:'🇨🇿 চেক রিপাবলিক',
+     comp:'FIFA World Cup 2026 • Group A',venue:'Estadio Akron, Guadalajara',
+     time:'04:00',channel:'BTV • T Sports',
+     src:W},
+    {id:'bengal_t20',sport:'cricket',status:'upcoming',wc:false,bd:false,
+     team1:'🇮🇳 Adamas Howrah Warriors',team2:'🇮🇳 Servotech Siliguri Strikers',
+     comp:'Bengal Pro T20 League 2026',venue:'Kolkata',
+     time:'13:30',channel:'Star Sports',
+     src:C},
+    {id:'andhra_t20',sport:'cricket',status:'upcoming',wc:false,bd:false,
+     team1:'🇮🇳 Simhadri Vizag Lions',team2:'🇮🇳 Amaravati Royals',
+     comp:'T20 Andhra Premier League 2026',venue:'Andhra Pradesh',
+     time:'14:00',channel:'Star Sports',
+     src:C},
+    {id:'bengal_w_t20',sport:'cricket',status:'upcoming',wc:false,bd:false,
+     team1:'🇮🇳 Lux Shyam Kolkata Tigers',team2:'🇮🇳 Servotech Siliguri Strikers',
+     comp:'Bengal T20 League (Women) 2026',venue:'Kolkata',
+     time:'14:00',channel:'Star Sports',
+     src:C},
+    // ── FINISHED ──
+    {id:'ban_aus_1',sport:'cricket',status:'finished',wc:false,bd:true,
+     team1:'🇧🇩 বাংলাদেশ',team2:'🇦🇺 অস্ট্রেলিয়া',
+     comp:'BAN vs AUS • 1st ODI',venue:'Shere Bangla Stadium, Mirpur',
+     time:'09 জুন',channel:'Gazi TV',score:'বাংলাদেশ জিতেছে ৮৬ রানে (DLS)',
+     src:[]},
+  ],
+  '2026-06-12': [
+    {id:'can_bos',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇨🇦 কানাডা',team2:'🇧🇦 বসনিয়া-হার্জেগোভিনা',
+     comp:'FIFA World Cup 2026 • Group B',venue:'BMO Field, Toronto',
+     time:'21:00',channel:'BTV • T Sports',src:W},
+    {id:'usa_par',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇺🇸 যুক্তরাষ্ট্র',team2:'🇵🇾 প্যারাগুয়ে',
+     comp:'FIFA World Cup 2026 • Group D',venue:'SoFi Stadium, Los Angeles',
+     time:'03:00',channel:'BTV • T Sports',src:W},
+    {id:'ban_aus_fielding',sport:'cricket',status:'upcoming',wc:false,bd:true,
+     team1:'🇧🇩 বাংলাদেশ',team2:'🇦🇺 অস্ট্রেলিয়া',
+     comp:'BAN vs AUS ODI Series (অব্যাহত)',venue:'Mirpur',
+     time:'11:00',channel:'Gazi TV / T Sports',src:B},
+  ],
+  '2026-06-13': [
+    {id:'qat_sui',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇶🇦 কাতার',team2:'🇨🇭 সুইজারল্যান্ড',
+     comp:'FIFA World Cup 2026 • Group B',venue:'Levi\'s Stadium, San Francisco',
+     time:'03:00',channel:'BTV • T Sports',src:W},
+    {id:'bra_mor',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇧🇷 ব্রাজিল',team2:'🇲🇦 মরক্কো',
+     comp:'FIFA World Cup 2026 • Group C',venue:'Hard Rock Stadium, Miami',
+     time:'02:00',channel:'BTV • T Sports',src:W},
+    {id:'ire_tur',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇮🇪 আয়ারল্যান্ড',team2:'🇹🇷 তুরস্ক',
+     comp:'FIFA World Cup 2026 • Group D',venue:'BC Place, Vancouver',
+     time:'06:00',channel:'BTV • T Sports',src:W},
+    {id:'sco_arg',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🏴󠁧󠁢󠁳󠁣󠁴󠁿 স্কটল্যান্ড',team2:'🇦🇷 আর্জেন্টিনা',
+     comp:'FIFA World Cup 2026 • Group C',venue:'Gillette Stadium, Boston',
+     time:'06:00',channel:'BTV • T Sports',src:W},
+  ],
+  '2026-06-14': [
+    {id:'ban_aus_3',sport:'cricket',status:'upcoming',wc:false,bd:true,
+     team1:'🇧🇩 বাংলাদেশ',team2:'🇦🇺 অস্ট্রেলিয়া',
+     comp:'BAN vs AUS • 3rd ODI',venue:'Shere Bangla Stadium, Mirpur',
+     time:'11:00',channel:'Gazi TV / T Sports',src:B},
+    {id:'ger_cur',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇩🇪 জার্মানি',team2:'🇨🇼 কুরাকাও',
+     comp:'FIFA World Cup 2026 • Group E',venue:'NRG Stadium, Houston',
+     time:'01:00',channel:'BTV • T Sports',src:W},
+    {id:'eng_cro',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 ইংল্যান্ড',team2:'🇭🇷 ক্রোয়েশিয়া',
+     comp:'FIFA World Cup 2026 • Group L',venue:'AT&T Stadium, Arlington',
+     time:'03:00',channel:'BTV • T Sports',src:W},
+  ],
+  '2026-06-15': [
+    {id:'spa_uru',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇪🇸 স্পেন',team2:'🇺🇾 উরুগুয়ে',
+     comp:'FIFA World Cup 2026 • Group H',venue:'Estadio Akron, Guadalajara',
+     time:'04:00',channel:'BTV • T Sports',src:W},
+    {id:'por_drc',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇵🇹 পর্তুগাল',team2:'🇨🇩 DR কঙ্গো',
+     comp:'FIFA World Cup 2026 • Group K',venue:'NRG Stadium, Houston',
+     time:'02:00',channel:'BTV • T Sports',src:W},
+    {id:'fra_sen',sport:'football',status:'upcoming',wc:true,bd:false,
+     team1:'🇫🇷 ফ্রান্স',team2:'🇸🇳 সেনেগাল',
+     comp:'FIFA World Cup 2026 • Group I',venue:'MetLife Stadium, New York',
+     time:'04:00',channel:'BTV • T Sports',src:W},
+  ],
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let hls=null, activeChId=null, activeMatchId=null;
+let currentFilter='all', currentDate='2026-06-11';
+let modalData=null;
+
+// ═══════════════════════════════════════════════════════════
+// CHANNEL LIST
+// ═══════════════════════════════════════════════════════════
+function renderChannels(){
+  const strip=document.getElementById('channelStrip');
+  if(!strip) return;
+  strip.innerHTML='';
+  CHANNELS.forEach(ch=>{
+    const pill=document.createElement('div');
+    pill.className='ch-pill'+(activeChId===ch.id?' active':'');
+    pill.innerHTML=`
+      <div class="ch-logo" style="background:${ch.bg};color:${ch.color}">${ch.name.substring(0,3).toUpperCase()}</div>
+      <span class="ch-name">${ch.name}</span>
+      <div class="ch-live-dot"></div>
+    `;
+    pill.onclick=()=>openChannelModal(ch);
+    strip.appendChild(pill);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATE ROW
+// ═══════════════════════════════════════════════════════════
+function renderDateRow(){
+  const row=document.getElementById('dateRow');
+  const dates=Object.keys(getMatchData()).sort();
+  const dayNames=['রবি','সোম','মঙ্গল','বুধ','বৃহস্প','শুক্র','শনি'];
+  row.innerHTML='';
+  dates.forEach(d=>{
+    const dt=new Date(d+'T00:00:00');
+    const btn=document.createElement('button');
+    btn.className='date-btn'+(d===currentDate?' active':'');
+    const day=dt.getDate();
+    const mn=['জান','ফেব','মার','এপ্র','মে','জুন','জুল','আগ','সেপ','অক্ট','নভ','ডিস'][dt.getMonth()];
+    const dn=dayNames[dt.getDay()];
+    btn.textContent=`${dn} ${day} ${mn}`;
+    btn.onclick=()=>{
+      currentDate=d;
+      document.querySelectorAll('.date-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderMatches();
+    };
+    row.appendChild(btn);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// MATCHES
+// ═══════════════════════════════════════════════════════════
+function renderMatches(){
+  const list=document.getElementById('matchesList');
+  const _md=getMatchData();const data=_md[currentDate]||[];
+
+  // filter
+  let filtered=data.filter(m=>{
+    if(currentFilter==='all') return true;
+    if(currentFilter==='football') return m.sport==='football';
+    if(currentFilter==='cricket') return m.sport==='cricket';
+    if(currentFilter==='live') return m.status==='live';
+    if(currentFilter==='wc') return m.wc===true;
+    if(currentFilter==='bd') return m.bd===true;
+    return true;
+  });
+
+  // sort: live → upcoming → finished
+  const order={live:0,upcoming:1,finished:2};
+  filtered.sort((a,b)=>order[a.status]-order[b.status]||a.time.localeCompare(b.time));
+
+  list.innerHTML='';
+
+  if(!filtered.length){
+    list.innerHTML='<div class="empty-state">এই দিনে কোনো ম্যাচ পাওয়া যায়নি</div>';
+    return;
+  }
+
+  // Group by status
+  const groups={live:[],upcoming:[],finished:[]};
+  filtered.forEach(m=>groups[m.status].push(m));
+
+  const groupLabels={live:'🔴 এখন LIVE',upcoming:'⏰ আসছে',finished:'✅ শেষ হয়েছে'};
+
+  ['live','upcoming','finished'].forEach(st=>{
+    if(!groups[st].length) return;
+    const title=document.createElement('div');
+    title.className='match-group-title';
+    title.textContent=groupLabels[st];
+    list.appendChild(title);
+    groups[st].forEach(m=>list.appendChild(buildMatchCard(m)));
+  });
+}
+
+function buildMatchCard(m){
+  const card=document.createElement('div');
+  card.className=`match-card ${m.sport}${m.wc?' wc-match':''}${activeMatchId===m.id?' active-card':''}`;
+
+  let statusHtml='';
+  if(m.status==='live') statusHtml=`<div class="m-status st-live"><span style="width:6px;height:6px;background:var(--red);border-radius:50%;animation:pulse 1.4s ease infinite;display:inline-block"></span>LIVE</div>`;
+  else if(m.status==='upcoming') statusHtml=`<div class="m-status st-upcoming">আসছে</div>`;
+  else statusHtml=`<div class="m-status st-finished">শেষ</div>`;
+
+  let actionHtml='';
+  if(m.status!=='finished'&&m.src&&m.src.length)
+    actionHtml=`<button class="watch-btn">▶ দেখুন</button>`;
+  else if(m.score)
+    actionHtml=`<div class="score-result">${m.score}</div>`;
+
+  const wcTag=m.wc?`<span class="wc-tag">🏆 WC</span>`:'';
+  const bdTag=m.bd?`<span class="bd-tag">🇧🇩 BD</span>`:'';
+  const noteTag=m.note?`<span class="comp-tag">${m.note}</span>`:'';
+
+  card.innerHTML=`
+    <div class="match-sport">${m.sport==='cricket'?'🏏':'⚽'}</div>
+    <div class="match-center">
+      <div class="teams-line">
+        <span class="team">${m.team1}</span>
+        <span class="vs">vs</span>
+        <span class="team">${m.team2}</span>
+      </div>
+      <div class="match-comp">
+        <span class="comp-tag">${m.comp}</span>
+        ${wcTag}${bdTag}${noteTag}
+        <span class="comp-tag">📺 ${m.channel}</span>
+      </div>
+      <div class="match-venue">📍 ${m.venue}</div>
+    </div>
+    <div class="match-right">
+      <div class="match-time">${m.time}</div>
+      ${statusHtml}
+      ${actionHtml}
+    </div>
+  `;
+
+  if(m.status!=='finished'&&m.src&&m.src.length){
+    card.onclick=()=>openMatchModal(m);
+  }
+  return card;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════════════════
+function openChannelModal(ch){
+  modalData={title:`📡 ${ch.name}`,sub:ch.cat,sources:ch.sources,chId:ch.id};
+  document.getElementById('modalTitle').textContent=`📡 ${ch.name}`;
+  document.getElementById('modalSub').textContent=ch.cat+' — সোর্স বেছে নিন';
+  renderModalSources(ch.sources);
+  document.getElementById('sourcesModal').classList.add('show');
+}
+
+function openMatchModal(m){
+  modalData={title:`${m.sport==='cricket'?'🏏':'⚽'} ${m.team1} vs ${m.team2}`,sub:m.comp,sources:m.src,matchId:m.id};
+  document.getElementById('modalTitle').textContent=`${m.sport==='cricket'?'🏏':'⚽'} ${m.team1.replace(/^.+ /,'')} vs ${m.team2.replace(/^.+ /,'')}`;
+  document.getElementById('modalSub').textContent=m.comp+' — সোর্স বেছে নিন';
+  renderModalSources(m.src);
+  document.getElementById('sourcesModal').classList.add('show');
+}
+
+function renderModalSources(sources){
+  const c=document.getElementById('srcList');
+  c.innerHTML='';
+  sources.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='src-btn';
+    // tag display
+    const tagLabel=s.tag==='embed'?'EMBED':s.tag==='redirect'?'↗ সাইট':s.tag==='hd'?'HD':s.tag==='bd'?'BD FREE':s.tag==='bk'?'⚡ Backup':'SD';
+    const tagClass=s.tag==='embed'?'tag-embed':s.tag==='redirect'?'tag-redirect':s.tag==='hd'?'tag-hd':s.tag==='bd'?'tag-bd':s.tag==='bk'?'tag-bk':'tag-sd';
+    btn.innerHTML=`
+      <div class="src-num">${i+1}</div>
+      <div class="src-info">
+        <div class="src-name">${s.label}</div>
+        <div class="src-q">${s.type==='redirect'?'নতুন ট্যাবে খুলবে':s.type==='embed'?'Player Embed':s.quality+' Stream'}</div>
+      </div>
+      <span class="src-tag ${tagClass}">${tagLabel}</span>
+    `;
+    btn.onclick=()=>{
+      playSource(s, modalData.title);
+      if(modalData.chId){activeChId=modalData.chId;activeMatchId=null;}
+      else if(modalData.matchId){activeMatchId=modalData.matchId;activeChId=null;}
+      renderChannels();renderMatches();
+      if(s.type!=='redirect') closeModal();
+      else closeModal();
+      document.querySelector('.app-body').scrollTo({top:0,behavior:'smooth'});
+    };
+    c.appendChild(btn);
+  });
+}
+
+function closeModal(){document.getElementById('sourcesModal').classList.remove('show')}
+function bgClose(e){if(e.target===document.getElementById('sourcesModal'))closeModal()}
+
+// ═══════════════════════════════════════════════════════════
+// PLAYER
+// ═══════════════════════════════════════════════════════════
+function hideAllPlayers(){
+  const f=document.getElementById('embedFrame');
+  clearTimeout(f._fallbackTimer);
+  f.style.display='none';
+  f.src='about:blank';
+  document.getElementById('videoPlayer').style.display='none';
+  document.getElementById('idleScreen').style.display='none';
+  document.getElementById('playerError').style.display='none';
+  document.getElementById('idleText').textContent='চ্যানেল বা ম্যাচ বেছে নিন';
+  document.getElementById('playerBadge').style.display='none';
+  if(hls){hls.destroy();hls=null;}
+}
+
+function playSource(src, name){
+  hideAllPlayers();
+  document.getElementById('playerBadge').style.display='flex';
+  document.getElementById('playerChName').textContent=name.substring(0,30);
+
+  if(src.type==='redirect'){
+    // Open in new tab, show idle with note
+    window.open(src.url,'_blank','noopener');
+    document.getElementById('idleScreen').style.display='flex';
+    document.getElementById('idleText').textContent='নতুন ট্যাবে খুলছে…';
+    document.getElementById('playerQuality').textContent='REDIRECT';
+    document.getElementById('playerBadge').style.display='flex';
+    return;
+  }
+
+  document.getElementById('playerQuality').textContent=(src.quality||'HD')+' LIVE';
+
+  if(src.type==='embed'){
+    const f=document.getElementById('embedFrame');
+    f.style.display='block';
+    f.src=src.url;
+    // If iframe blocked, fallback message after 8s
+    f._fallbackTimer=setTimeout(()=>{
+      if(f.style.display==='block'){
+        showEmbedFallback(src.url, name);
+      }
+    },8000);
+    return;
+  }
+
+  // type==='hls' or legacy
+  const video=document.getElementById('videoPlayer');
+  video.style.display='block';
+  const isM3u8=src.url.includes('.m3u8');
+  if(isM3u8){
+    if(Hls.isSupported()){
+      hls=new Hls({enableWorker:true,lowLatencyMode:true});
+      hls.loadSource(src.url);hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));
+      hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal)showError()});
+    } else if(video.canPlayType('application/vnd.apple.mpegurl')){
+      video.src=src.url;video.play().catch(()=>{});
+    } else showError();
+  } else {
+    video.src=src.url;video.play().catch(()=>{});
+  }
+}
+
+// Legacy wrapper still used by some paths
+function playStream(url,name,quality){
+  playSource({type:url.includes('.m3u8')?'hls':'hls',url,quality},name);
+}
+
+function showEmbedFallback(url, name){
+  document.getElementById('embedFrame').style.display='none';
+  document.getElementById('playerError').style.display='flex';
+  document.getElementById('errorText').textContent='Embed ব্লক — সাইটে যান';
+  document.getElementById('errorHint').innerHTML=`<a href="${url}" target="_blank" style="color:var(--blue);text-decoration:none">▶ ${name} সাইটে খুলুন ↗</a>`;
+}
+
+function showError(){
+  document.getElementById('idleScreen').style.display='none';
+  document.getElementById('playerBadge').style.display='none';
+  document.getElementById('playerError').style.display='flex';
+  document.getElementById('errorText').textContent='স্ট্রিম লোড হয়নি';
+  document.getElementById('errorHint').textContent='অন্য সোর্স বা চ্যানেল ট্রাই করুন';
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTERS & VIEWS
+// ═══════════════════════════════════════════════════════════
+function applyFilter(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.filt-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMatches();
+}
+
+function showScheduleUI(show){
+  const grid=document.getElementById('chGridView');
+  const matchList=document.getElementById('matchesList');
+  const filterRow=document.querySelector('.filter-row');
+  const dateRow=document.getElementById('dateRow');
+  // Channel strip always visible
+  if(show){
+    grid.style.display='none';
+    matchList.style.display='flex';
+    if(filterRow)filterRow.style.display='flex';
+    if(dateRow)dateRow.style.display='flex';
+  } else {
+    grid.style.display='block';
+    matchList.style.display='none';
+    if(filterRow)filterRow.style.display='none';
+    if(dateRow)dateRow.style.display='none';
+  }
+}
+
+function renderChannelGrid(){
+  const grid=document.getElementById('chGrid');
+  grid.innerHTML='';
+  CHANNELS.forEach(ch=>{
+    const card=document.createElement('div');
+    card.className='ch-grid-card';
+    card.innerHTML=`
+      <div class="ch-grid-logo" style="background:${ch.bg};color:${ch.color}">${ch.name.substring(0,4).toUpperCase()}</div>
+      <div class="ch-grid-name">${ch.name}</div>
+      <div class="ch-grid-cat">${ch.cat}</div>
+      <div class="ch-live-badge"><span style="width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1.4s ease infinite;display:inline-block"></span>LIVE</div>
+      <button class="ch-grid-btn" onclick="event.stopPropagation()">▶ দেখুন</button>
+    `;
+    card.querySelector('.ch-grid-btn').onclick=()=>openChannelModal(ch);
+    card.onclick=()=>openChannelModal(ch);
+    grid.appendChild(card);
+  });
+}
+
+function setView(v,btn){
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(v==='channels'){
+    showScheduleUI(false);
+    renderChannelGrid();
+  } else {
+    showScheduleUI(true);
+    if(v==='wc') applyFilter('wc',document.querySelectorAll('.filt-btn')[4]);
+    else if(v==='cricket') applyFilter('cricket',document.querySelectorAll('.filt-btn')[2]);
+    else applyFilter('all',document.querySelectorAll('.filt-btn')[0]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+function getBDTime(){
+  const now=new Date();
+  const utc=now.getTime()+(now.getTimezoneOffset()*60000);
+  return new Date(utc+(6*60*60000));
+}
+function formatBD24(dt){
+  return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+}
+function updateLiveClock(){
+  document.getElementById('liveDate').textContent=formatBD24(getBDTime())+' BST';
+}
+function init(){
+  const now=getBDTime();
+  const BD_DAYS=['রবিবার','সোমবার','মঙ্গলবার','বুধবার','বৃহস্পতিবার','শুক্রবার','শনিবার'];
+  const BD_MONTHS=['জানুয়ারি','ফেব্রুয়ারি','মার্চ','এপ্রিল','মে','জুন','জুলাই','আগস্ট','সেপ্টেম্বর','অক্টোবর','নভেম্বর','ডিসেম্বর'];
+  document.getElementById('liveDate').textContent=formatBD24(now)+' BST';
+  document.getElementById('scheduleDate').textContent=`${BD_DAYS[now.getDay()]}, ${now.getDate()} ${BD_MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+  document.getElementById('lastUpdated').textContent=`শেষ আপডেট: রিয়েল ডেটা (Cricinfo + FIFA)`;
+  renderChannels();
+  renderDateRow();
+  renderMatches();
+  setInterval(updateLiveClock,1000);
+  setInterval(()=>{
+    document.getElementById('lastUpdated').textContent=`আপডেট: ${formatBD24(getBDTime())} BST`;
+    renderMatches();
+  },300000);
+}
+init();
+</script>
+</body>
+</html>
